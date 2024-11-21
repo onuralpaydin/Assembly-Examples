@@ -1,60 +1,70 @@
 .data
-first: .word 5            # first değişkeni, başlangıç değeri 3
-second: .word 3           # second değişkeni, başlangıç değeri 3
-result: .word 0           # result değişkeni, başlangıç değeri 0
+alpha: .word 3         # Test için a değişkeni 
+beta: .word 5         # Test için b değişkeni 
 
 .text
-.globl main               # Ana fonksiyonun global olarak tanımlanması
 
 main:
-    lw $t0, first         # $t0 = first
-    lw $t1, second        # $t1 = second
-    li $v0, 0             # result = 0 (ön tanım)
+    # a ve b'yi bellekten yükle
+    lw $t0, alpha        # $t0 = a
+    lw $t1, beta       # $t1 = b
 
-    bne $t0, $t1, test_call # Eğer first != second ise test fonksiyonuna git
-    add $t2, $t0, $t1         # first == second, result = first + second
-    j print_result              # Sonucu yazdırmaya git
+ # a != b kontrolü
+    beq $t0, $t1, add_case  # Eğer a == b ise toplama yap
 
-test_call:
-    move $a0, $t0           # $a0 = first (parametre 1)
-    move $a1, $t1           # $a1 = second (parametre 2)
-    jal test                # test(first, second) çağrısı
-    j print_result          # Sonucu yazdırmaya git
+    # a != b durumunda test fonksiyonunu çağır
+    addi $sp, $sp, -8   # Stack pointer'ı 8 byte geri çek (iki 4-byte'lık veri)
+    sw $t0, 4($sp)      # a'yı stack'e kaydet
+    sw $t1, 0($sp)      # b'yi stack'e kaydet
+    jal test            # test fonksiyonuna git
+    addi $sp, $sp, 8    # Stack pointer'ı eski haline getir (8 byte geri)
 
-print_result:
-    # Sonuç yazdırılıyor
-    move $a0, $t2           # Sonucu $a0'a taşı
-    li $v0, 1               # print_int syscall'ını tetikle
-    syscall                 # Syscall komutuyla sonucu yazdır
+    j end_main          # Programı bitir
 
-    li $v0, 10              # Program sonlandırma için syscall
+add_case:
+    add $s7, $t0, $t1   # $s7 = a + b (sonucu $s7'ye kaydet)
+    j end_main          # Programı bitir
+
+end_main:
+    # Programı sonlandır
+    li $v0, 10          # Program sonu için syscall
     syscall
 
-# test fonksiyonu
+# Test Fonksiyonu
 test:
-    addi $sp, $sp, -8       # Yığından yer aç (8 byte yer açılıyor)
-    sw $ra, 4($sp)          # $ra'yı yığına kaydet
-    sw $a0, 0($sp)          # $a0'ı yığına kaydet (first parametresi)
+    lw $t0, 4($sp)      # Stack'ten a'yı yükle
+    lw $t1, 0($sp)      # Stack'ten b'yi yükle
+    slt $t2, $t0, $t1   # $t2 = (a < b) kontrolü
+    bne $t2, $0, call_subtract  # Eğer a < b doğruysa subtract çağır
 
-    slt $t2, $a1, $a0       # $t2 = ($a1 < $a0) -> first > second?
-    bne $t2, $zero, multiply_call # Eğer first > second, multiply'a git
-    jal subtract               # Aksi halde subtract fonksiyonuna git
-    j test_end
+    # a > b durumunda multiply fonksiyonunu çağır
+    jal multiply
+    jr $ra              # Ana programa geri dön
 
-multiply_call:
-    jal multiply               # multiply(first, second) çağrısı
+call_subtract:
+    jal subtract        # subtract fonksiyonuna git
+    jr $ra              # Ana programa geri dön
 
-test_end:
-    lw $ra, 4($sp)          # $ra'yı yığından geri yükle
-    addi $sp, $sp, 8        # Yığını eski haline getir (8 byte geri al)
-    jr $ra                  # Ana programa dön
-
-# multiply fonksiyonu
+# Multiply Fonksiyonu (Döngü ile çarpma işlemi)
 multiply:
-    mul $t2, $a0, $a1          # $t2 = first * second
-    jr $ra                     # Ana programa dön
+    lw $t0, 4($sp)      # a'yı yükle
+    lw $t1, 0($sp)      # b'yi yükle
+    addi $t2, $0, 0  # $t2 = 0 (sonuç için)
+    addi $t3, $0, 0  # Döngü sayacı
 
-# subtract fonksiyonu
+multiply_loop:
+    beq $t3, $t1, multiply_done  # Döngüden çık (b kadar tekrar et)
+    add $t2, $t2, $t0            # $t2 += a (sonuç güncelle)
+    addi $t3, $t3, 1             # Döngü sayacını artır
+    j multiply_loop              # Döngüye devam
+
+multiply_done:
+    add $s7, $t2, $0          # Sonuç: $s7 registerina taşındı
+    jr $ra                       # Ana programa geri dön
+
+# Subtract Fonksiyonu (Çıkarma işlemi)
 subtract:
-    sub $t2, $a0, $a1          # $t2 = first - second
-    jr $ra                     # Ana programa dön
+    lw $t0, 4($sp)      # a'yı yükle
+    lw $t1, 0($sp)      # b'yi yükle
+    sub $s7, $t0, $t1   # $s7 = a - b (sonuç çıkarma)
+    jr $ra              # Ana programa geri dön
