@@ -24,4 +24,5 @@ skip_increment:
     addi $t2, $t2, -1       # Kalan eleman sayısını bir azalt
     j loop                  # Döngünün başına dön
 end:
- 
+ li $v0, 1              
+    syscall                 # Syscall komutuyla programı sonlandır
